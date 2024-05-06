@@ -90,42 +90,25 @@ def createEncodings(image):
     return known_encodings,face_locations
 
 #Function to compare encodings
-def compareFaceEncodings(unknown_encoding,known_encodings,known_names):
-    """
-    Compares face encodings to check if 2 faces are same or not.
-
-    Parameters
-    ----------
-    unknown_encoding : np array
-        Face encoding of unknown people.
-    known_encodings : np array
-        Face encodings of known people.
-    known_names : list of strings
-        Names of known people
-
-    Returns
-    -------
-    acceptBool : Bool
-        face matched or not
-    duplicateName : String
-        Name of matched face
-    distance : Float
-        Distance between 2 faces
-
-    """
-    duplicateName=""
-    distance=0.0
-    matches = face_recognition.compare_faces(known_encodings, unknown_encoding,tolerance=0.5)
+def compareFaceEncodings(unknown_encoding, known_encodings, known_names):
+    duplicateName = ""
+    distance = 0.0
+    matches = face_recognition.compare_faces(known_encodings, unknown_encoding, tolerance=0.5)
     face_distances = face_recognition.face_distance(known_encodings, unknown_encoding)
-    best_match_index = np.argmin(face_distances)
-    distance=face_distances[best_match_index]
-    if matches[best_match_index]:
-        acceptBool=True
-        duplicateName=known_names[best_match_index]
+    
+    # Check if face_distances is not empty
+    if face_distances:
+        best_match_index = np.argmin(face_distances)
+        distance = face_distances[best_match_index]
+        if matches[best_match_index]:
+            acceptBool = True
+            duplicateName = known_names[best_match_index]
+        else:
+            acceptBool = False
     else:
-        acceptBool=False
-        duplicateName=""
-    return acceptBool,duplicateName,distance
+        acceptBool = False
+
+    return acceptBool, duplicateName, distance
 
 #Save Image to new directory
 def saveImageToDirectory(image,name,imageName):
@@ -156,112 +139,84 @@ def saveImageToDirectory(image,name,imageName):
 
 
 #Function for creating encodings for known people
-def processKnownPeopleImages(path="./People/",saveLocation="./known_encodings.pickle"):
-    """
-    Process images of known people and create face encodings to compare in future.
-    Eaach image should have just 1 face in it.
-
-    Parameters
-    ----------
-    path : STRING, optional
-        Path for known people dataset. The default is "./People".
-        It should be noted that each image in this dataset should contain only 1 face.
-    saveLocation : STRING, optional
-        Path for storing encodings for known people dataset. The default is "./known_encodings.pickle in current directory".
-
-    Returns
-    -------
-    None.
-
-    """
-    
-    known_encodings=[]
-    known_names=[]
+def processKnownPeopleImages(path="./People/", saveLocation="./known_encodings.pickle"):
+    known_encodings = []
+    known_names = []
     for img in os.listdir(path):
-        imgPath=path+img
+        imgPath = path + img
 
-        #Read image
-        image=cv2.imread(imgPath)
-        name=img.rsplit('.')[0]
-        #Resize
-        image=cv2.resize(image,(0,0),fx=0.2,fy=0.2,interpolation=cv2.INTER_LINEAR)
-        
-        #Get locations and encodings
-        encs,locs=createEncodings(image)
-        
-        known_encodings.append(encs[0])
-        known_names.append(name)
-        
-        for loc in locs:
-            top, right, bottom, left=loc
-            
-        #Show Image
-        cv2.rectangle(image,(left,top),(right,bottom),color=(255,0,0),thickness=2)
-        cv2.imshow("Image",image)
-        cv2.waitKey(1)
-        cv2.destroyAllWindows()
-    saveEncodings(known_encodings,known_names,saveLocation)
+        # Read image
+        image = cv2.imread(imgPath)
+        name = img.rsplit('.')[0]
+        # Resize
+        image = cv2.resize(image, (0, 0), fx=0.2, fy=0.2, interpolation=cv2.INTER_LINEAR)
+
+        # Get locations and encodings
+        encs, locs = createEncodings(image)
+
+        # Check if any faces were detected
+        if encs:
+            known_encodings.append(encs[0])
+            known_names.append(name)
+
+            for loc in locs:
+                top, right, bottom, left = loc
+
+            # Show Image
+            cv2.rectangle(image, (left, top), (right, bottom), color=(255, 0, 0), thickness=2)
+            cv2.imshow("Image", image)
+            cv2.waitKey(1)
+            cv2.destroyAllWindows()
+    saveEncodings(known_encodings, known_names, saveLocation)
 
 #Function for processing dataset images
-def processDatasetImages(path="./Dataset/",saveLocation="./dataset_encodings.pickle"):
-    """
-    Process image in dataset from where you want to separate images.
-    It separates the images into directories of known people, groups and any unknown people images.
-    Parameters
-    ----------
-    path : STRING, optional
-        Path for known people dataset. The default is "./People".
-        It should be noted that each image in this dataset should contain only 1 face.
-    saveLocation : STRING, optional
-        Path for storing encodings for known people dataset. The default is "./known_encodings.pickle in current directory".
+def processDatasetImages(path="./Dataset/", saveLocation="./dataset_encodings.pickle"):
+    # Read pickle file for known people to compare faces from
+    people_encodings, names = readEncodingsPickle("./known_encodings.pickle")
 
-    Returns
-    -------
-    None.
-
-    """
-    #Read pickle file for known people to compare faces from
-    people_encodings,names=readEncodingsPickle("./known_encodings.pickle")
-    
     for img in os.listdir(path):
-        imgPath=path+img
+        imgPath = path + img
 
-        #Read image
-        image=cv2.imread(imgPath)
-        orig=image.copy()
-        
-        #Resize
-        image=cv2.resize(image,(0,0),fx=0.2,fy=0.2,interpolation=cv2.INTER_LINEAR)
-        
-        #Get locations and encodings
-        encs,locs=createEncodings(image)
-        
-        #Save image to a group image folder if more than one face is in image
-        if len(locs)>1:
-            saveImageToDirectory(orig,"Group",img)
-        
-        
-        #Processing image for each face
-        i=0
-        knownFlag=0
+        # Read image
+        image = cv2.imread(imgPath)
+        orig = image.copy()
+
+        # Resize
+        image = cv2.resize(image, (0, 0), fx=0.2, fy=0.2, interpolation=cv2.INTER_LINEAR)
+
+        # Get locations and encodings
+        encs, locs = createEncodings(image)
+
+        # Save image to a group image folder if more than one face is in image
+        if len(locs) > 1:
+            saveImageToDirectory(orig, "Group", img)
+
+        # Processing image for each face
+        i = 0
+        knownFlag = 0
         for loc in locs:
-            top, right, bottom, left=loc
-            unknown_encoding=encs[i]
-            i+=1
-            acceptBool,duplicateName,distance=compareFaceEncodings(unknown_encoding,people_encodings,names)
+            top, right, bottom, left = loc
+            unknown_encoding = encs[i]
+            i += 1
+            acceptBool, duplicateName, distance = compareFaceEncodings(unknown_encoding, people_encodings, names)
             if acceptBool:
                 saveImageToDirectory(orig, duplicateName, img)
-                knownFlag=1
-        if knownFlag==1:
+                knownFlag = 1
+
+            # Draw rectangle on the image
+            cv2.rectangle(image, (left, top), (right, bottom), color=(255, 0, 0), thickness=2)
+
+        if knownFlag == 1:
             print("Match Found")
         else:
-            saveImageToDirectory(orig,"Unknown",img)
-        
-        #Show Image
-        cv2.rectangle(image,(left,top),(right,bottom),color=(255,0,0),thickness=2)
-        cv2.imshow("Image",image)
-        cv2.waitKey(1)
-        cv2.destroyAllWindows()
+            saveImageToDirectory(orig, "Unknown", img)
+
+        # Show Image
+        if locs:  # Check if locs is not empty
+            cv2.imshow("Image", image)
+            cv2.waitKey(1)
+            cv2.destroyAllWindows()
+
 
         
 def main():
